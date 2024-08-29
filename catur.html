@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game with Automatic Bot Movement</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            width: 400px;
+            height: 400px;
+        }
+        .square {
+            width: 50px;
+            height: 50px;
+        }
+        .black {
+            background-color: #769656;
+        }
+        .white {
+            background-color: #eeeed2;
+        }
+        .piece {
+            font-size: 2em;
+            text-align: center;
+            line-height: 50px;
+            cursor: pointer;
+        }
+        .highlight {
+            background-color: rgba(255, 255, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen bg-gray-100">
+    <div class="board" id="board"></div>
+    <script>
+        const boardElement = document.getElementById('board');
+        const pieces = {
+            'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'p': '♙',
+            'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟'
+        };
+
+        const initialBoard = [
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+        ];
+
+        let selectedPiece = null;
+
+        function createBoard() {
+            initialBoard.forEach((row, rowIndex) => {
+                row.forEach((piece, colIndex) => {
+                    const square = document.createElement('div');
+                    square.className = `square ${((rowIndex + colIndex) % 2 === 0) ? 'white' : 'black'}`;
+                    square.dataset.row = rowIndex;
+                    square.dataset.col = colIndex;
+                    square.innerHTML = piece ? `<span class="piece" onclick="selectPiece(event)">${pieces[piece]}</span>` : '';
+                    boardElement.appendChild(square);
+                });
+            });
+        }
+
+        function selectPiece(event) {
+            const pieceElement = event.target;
+            const square = pieceElement.parentElement;
+            const row = parseInt(square.dataset.row);
+            const col = parseInt(square.dataset.col);
+
+            if (selectedPiece) {
+                movePiece(row, col);
+                setTimeout(botMove, 500); // Delay for bot move
+            } else {
+                selectedPiece = { row, col, piece: pieceElement.innerHTML, type: initialBoard[row][col] };
+                highlightMoves(row, col, selectedPiece.type);
+            }
+        }
+
+        function highlightMoves(row, col, type) {
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => square.classList.remove('highlight'));
+
+            const moves = getValidMoves(row, col, type);
+            moves.forEach(move => {
+                const targetSquare = squares[move.row * 8 + move.col];
+                targetSquare.classList.add('highlight');
+            });
+        }
+
+        function getValidMoves(row, col, type) {
+            const moves = [];
+            const directions = {
+                'p': [[-1, 0], [-1, 1], [-1, -1]], // Pawn moves (up)
+                'P': [[1, 0], [1, 1], [1, -1]], // Pawn moves (down)
+                'r': [[1, 0], [-1, 0], [0, 1], [0, -1]], // Rook moves
+                'n': [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]], // Knight moves
+                'b': [[1, 1], [1, -1], [-1, 1], [-1, -1]], // Bishop moves
+                'q': [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]], // Queen moves
+                'k': [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] // King moves
+            };
+
+            const moveDirections = directions[type.toLowerCase()];
+
+            moveDirections.forEach(move => {
+                let newRow = row + move[0];
+                let newCol = col + move[1];
+
+                // Handle pawn's first move
+                if (type.toLowerCase() === 'p' && row === 6 && move[0] === 1) {
+                    newRow = row + 2; // Allow two steps forward
+                } else if (type.toLowerCase() === 'p' && row === 1 && move[0] === -1) {
+                    newRow = row - 2; // Allow two steps forward
+                }
+
+                while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                    const targetSquare = initialBoard[newRow][newCol];
+                    if (targetSquare === '') {
+                        moves.push({ row: newRow, col: newCol });
+                    } else {
+                        if ((type === type.toLowerCase() && targetSquare.toUpperCase() !== targetSquare) || 
+                            (type === type.toUpperCase() && targetSquare.toLowerCase() !== targetSquare)) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                        break;
+                    }
+                    if (type.toLowerCase() === 'n') break; // Knight moves only once
+                    newRow += move[0];
+                    newCol += move[1];
+                }
+            });
+
+            return moves;
+        }
+
+        function movePiece(row, col) {
+            const squares = document.querySelectorAll('.square');
+            const fromSquare = squares[selectedPiece.row * 8 + selectedPiece.col];
+            const toSquare = squares[row * 8 + col];
+
+            if (toSquare.innerHTML === '' || toSquare.innerHTML !== fromSquare.innerHTML) {
+                toSquare.innerHTML = `<span class="piece">${selectedPiece.piece}</span>`;
+                fromSquare.innerHTML = '';
+                initialBoard[row][col] = selectedPiece.type;
+                initialBoard[selectedPiece.row][selectedPiece.col] = '';
+            }
+
+            selectedPiece = null;
+            const highlightedSquares = document.querySelectorAll('.highlight');
+            highlightedSquares.forEach(square => square.classList.remove('highlight'));
+        }
+
+        function botMove() {
+            const botPieces = getBotPieces();
+            if (botPieces.length === 0) return;
+
+            const randomPiece = botPieces[Math.floor(Math.random() * botPieces.length)];
+            const moves = getValidMoves(randomPiece.row, randomPiece.col, randomPiece.type);
+            if (moves.length > 0) {
+                const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                movePiece(randomMove.row, randomMove.col);
+            }
+        }
+
+        function getBotPieces() {
+            const botPieces = [];
+            initialBoard.forEach((row, rowIndex) => {
+                row.forEach((piece, colIndex) => {
+                    if (piece && piece === piece.toLowerCase()) {
+                        botPieces.push({ row: rowIndex, col: colIndex, type: piece });
+                    }
+                });
+            });
+            return botPieces;
+        }
+
+        createBoard();
+    </script>
+<script>window.parent.postMessage({ action: "ready" }, "*"); 
+
+window.console = new Proxy(console, {
+get(target, prop) {
+if (['log', 'warn', 'error'].includes(prop)) {
+  return new Proxy(target[prop], {
+    apply(fn, thisArg, args) {
+      fn.apply(thisArg, args);
+      window.parent.postMessage({ action: 'console', 
+        type: prop, 
+        args: args.map((arg) => {
+          try {
+            return JSON.stringify(arg).replace(/^["']|["']$/g, '');
+          } catch (e) {
+            return arg;
+          }
+        }) 
+      }, '*');
+    }
+  });
+}
+return target[prop];
+}
+});
+</script></body>
+</html>
